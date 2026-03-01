@@ -1,0 +1,46 @@
+name: codeguard
+
+services:
+  backend:
+    build: ./backend
+    container_name: codeguard-backend
+    ports:
+      - "5000:5000"
+    depends_on:
+      - postgres
+    volumes:
+      - ./backend:/app
+
+  frontend:
+    build: ./frontend
+    container_name: codeguard-frontend
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+    environment:
+      - CHOKIDAR_USEPOLLING=true
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+
+  postgres:
+    image: pgvector/pgvector:pg15
+    container_name: codeguard-postgres
+    environment:
+      POSTGRES_USER: codeguard
+      POSTGRES_PASSWORD: codeguard
+      POSTGRES_DB: codeguard
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+  
+  adminer:
+    image: adminer
+    container_name: codeguard-adminer
+    ports:
+      - 8080:8080
+
+volumes:
+  pg_data:
