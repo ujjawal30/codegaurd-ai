@@ -5,12 +5,14 @@ Centralized settings management via Pydantic Settings.
 All values are loaded from environment variables or .env file.
 """
 
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import field_validator
 
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
+
+    model_config = SettingsConfigDict(env_file=".env", case_sensitive=True)
 
     # ── Application ──────────────────────────────────────────────
     APP_NAME: str = "CodeGuard AI"
@@ -25,7 +27,7 @@ class Settings(BaseSettings):
 
     # ── Gemini LLM ───────────────────────────────────────────────
     GEMINI_API_KEY: str = ""
-    GEMINI_MODEL_NAME: str = "gemini-2.5-flash"
+    GEMINI_MODEL_NAME: str = "gemini-2.5-flash-lite"
     GEMINI_EMBED_MODEL_NAME: str = "gemini-embedding-001"
 
     # ── Upload ───────────────────────────────────────────────────
@@ -43,10 +45,6 @@ class Settings(BaseSettings):
                 "GEMINI_API_KEY must be set in environment variables or .env file"
             )
         return v
-
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
 
 
 settings = Settings()

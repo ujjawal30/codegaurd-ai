@@ -148,7 +148,7 @@ class FileClassification(BaseModel):
     file_path: str
     role: FileRole
     confidence: float = Field(..., ge=0.0, le=1.0)
-    reasoning: str = Field(..., max_length=500)
+    reasoning: str = Field(..., max_length=2000)
 
 
 # ═════════════════════════════════════════════════════════════════
@@ -188,8 +188,8 @@ class DetectedIssue(BaseModel):
     category: IssueCategory
     severity: Severity
     title: str = Field(..., max_length=200)
-    description: str = Field(..., max_length=1000)
-    suggestion: str = Field(..., max_length=1000)
+    description: str = Field(..., max_length=2000)
+    suggestion: str = Field(..., max_length=2000)
     grounding: str = Field(
         ...,
         max_length=500,
@@ -218,8 +218,8 @@ class RefactorTask(BaseModel):
     priority: int = Field(..., ge=1, le=10, description="1 = highest priority")
     affected_files: list[str] = Field(default_factory=list)
     effort_estimate: EffortEstimate
-    description: str = Field(..., max_length=1500)
-    rationale: str = Field(..., max_length=500)
+    description: str = Field(..., max_length=2000)
+    rationale: str = Field(..., max_length=2000)
     related_issues: list[str] = Field(
         default_factory=list,
         description="Titles of DetectedIssues this task addresses",
@@ -251,7 +251,7 @@ class GeneratedTest(BaseModel):
     target_function: str = Field(..., description="Fully qualified function name")
     target_file: str
     test_code: str = Field(..., description="Complete pytest test code")
-    rationale: str = Field(..., max_length=500)
+    rationale: str = Field(..., max_length=2000)
     risk_level: RiskLevel
 
 
@@ -266,7 +266,7 @@ class ValidationResult(BaseModel):
     confidence_score: float = Field(..., ge=0.0, le=1.0)
     issues_found: list[str] = Field(default_factory=list)
     suggestions: list[str] = Field(default_factory=list)
-    summary: str = Field(..., max_length=1000)
+    summary: str = Field(..., max_length=2000)
 
 
 # ═════════════════════════════════════════════════════════════════
