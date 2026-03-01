@@ -56,8 +56,8 @@ export default function HistoryPage() {
           <CardHeader className="pb-0">
             <CardTitle className="text-sm font-medium text-muted-foreground">{jobs.length} results</CardTitle>
           </CardHeader>
-          <CardContent className="divide-y rounded-none">
-            {jobs.map((job) => {
+          <CardContent>
+            {jobs.map((job, idx) => {
               const StatusIcon = job.status === "completed" ? CheckCircle2 : job.status === "failed" ? XCircle : Clock;
               const iconColor = job.status === "completed" ? "text-emerald-500" : job.status === "failed" ? "text-red-400" : "text-muted-foreground";
 
@@ -65,10 +65,11 @@ export default function HistoryPage() {
                 <Link
                   key={job.job_id}
                   to={job.status === "completed" ? `/analysis/${job.job_id}` : "#"}
-                  className={`flex items-center gap-4 py-4 transition-colors group ${
+                  className={`relative flex items-center gap-4 py-4 transition-colors group ${
                     job.status === "completed" ? "hover:bg-muted/50 -mx-4 px-4 rounded-md" : "opacity-60 pointer-events-none"
                   }`}
                 >
+                  {idx !== 0 && <div className="absolute border-t border-muted top-0 left-4 right-4" />}
                   <StatusIcon className={`w-5 h-5 shrink-0 ${iconColor}`} />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate group-hover:text-foreground">{job.filename}</p>
