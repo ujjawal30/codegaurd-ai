@@ -10,7 +10,8 @@ from sqlalchemy import text
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    await engine.connect()
+    async with engine.begin() as conn:
+        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
     
     # yield to allow the app to run while the connection is open
     yield

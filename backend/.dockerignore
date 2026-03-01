@@ -1,0 +1,67 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.sqlite3
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+*.log
+
+# Virtualenv
+*.env
+*.venv
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Test & coverage output
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+.pytest_cache/
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.coverage.*
+.cache
+
+# Docker
+Dockerfile
+*.dockerfile
+
+# Git
+.git
+.gitignore
+
+# Local environment files
+.env
+.env.*
+
+# Others
+*.orig
