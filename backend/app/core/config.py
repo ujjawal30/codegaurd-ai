@@ -22,9 +22,6 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "postgresql+asyncpg://codeguard:codeguard@postgres:5432/codeguard"
     SYNC_DATABASE_URL: str = "postgresql://codeguard:codeguard@postgres:5432/codeguard"
 
-    # ── Redis ────────────────────────────────────────────────────
-    REDIS_URL: str = "redis://redis:6379/0"
-
     # ── Gemini LLM ───────────────────────────────────────────────
     GEMINI_API_KEY: str = ""
     GEMINI_MODEL_NAME: str = "gemini-2.5-flash-lite"
