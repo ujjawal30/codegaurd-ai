@@ -2,7 +2,9 @@ name: codeguard
 
 services:
   backend:
-    build: ./backend
+    build:
+      context: ./backend
+      target: development
     container_name: codeguard-backend
     ports:
       - "5000:5000"
@@ -10,9 +12,12 @@ services:
       - postgres
     volumes:
       - ./backend:/app
+      - upload_data:/app/uploads
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      target: development
     container_name: codeguard-frontend
     ports:
       - "5173:5173"
@@ -35,7 +40,12 @@ services:
       - "5432:5432"
     volumes:
       - pg_data:/var/lib/postgresql/data
-  
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U codeguard"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   adminer:
     image: adminer
     container_name: codeguard-adminer
@@ -44,3 +54,4 @@ services:
 
 volumes:
   pg_data:
+  upload_data:

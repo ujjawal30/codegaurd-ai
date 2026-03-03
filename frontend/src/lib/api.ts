@@ -6,7 +6,8 @@
 
 import axios from "axios";
 
-const API_BASE = import.meta.env.VITE_API_URL ?? "/api";
+// Runtime env (production) → build-time env (development) → fallback
+const API_BASE = (window as unknown as Record<string, Record<string, string>>).__ENV__?.VITE_API_URL ?? import.meta.env.VITE_API_URL ?? "/api";
 
 export const api = axios.create({
   baseURL: API_BASE,
