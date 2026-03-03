@@ -1,6 +1,16 @@
 name: CI/CD Pipeline
 
 on:
+  workflow_dispatch:
+    inputs:
+      service:
+        description: "Which service to deploy"
+        required: true
+        type: choice
+        options:
+          - frontend
+          - backend
+          - both
   push:
     branches:
       - "release/*"
@@ -13,13 +23,14 @@ jobs:
   changes:
     runs-on: ubuntu-latest
     outputs:
-      frontend: ${{ steps.filter.outputs.frontend }}
-      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.set-outputs.outputs.frontend }}
+      backend: ${{ steps.set-outputs.outputs.backend }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Detect changed paths
+      - name: Detect changed paths (push only)
+        if: github.event_name == 'push'
         uses: dorny/paths-filter@v3
         id: filter
         with:
@@ -28,6 +39,18 @@ jobs:
               - 'frontend/**'
             backend:
               - 'backend/**'
+
+      - name: Set outputs
+        id: set-outputs
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            SERVICE="${{ github.event.inputs.service }}"
+            echo "frontend=$( [ "$SERVICE" == 'frontend' ] || [ "$SERVICE" == 'both' ] && echo true || echo false )" >> $GITHUB_OUTPUT
+            echo "backend=$( [ "$SERVICE" == 'backend' ] || [ "$SERVICE" == 'both' ] && echo true || echo false )" >> $GITHUB_OUTPUT
+          else
+            echo "frontend=${{ steps.filter.outputs.frontend }}" >> $GITHUB_OUTPUT
+            echo "backend=${{ steps.filter.outputs.backend }}" >> $GITHUB_OUTPUT
+          fi
 
   frontend:
     needs: changes
