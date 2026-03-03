@@ -7,6 +7,7 @@ All values are loaded from environment variables or .env file.
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import field_validator
+from typing import List
 
 
 class Settings(BaseSettings):
@@ -33,6 +34,14 @@ class Settings(BaseSettings):
 
     # ── RAG ──────────────────────────────────────────────────────
     RAG_COLLECTION_NAME: str = "codeguard_standards"
+
+    # ── CORS ─────────────────────────────────────────────────────
+    CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173"
+
+    @property
+    def cors_origin_list(self) -> List[str]:
+        """Parse comma-separated CORS_ORIGINS into a list."""
+        return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
 
     @field_validator("GEMINI_API_KEY")
     @classmethod
