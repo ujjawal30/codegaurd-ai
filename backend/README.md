@@ -1,6 +1,6 @@
 # CodeGuard AI — Backend
 
-> **Autonomous Code Review & Refactor Planner** powered by Google Gemini, LangGraph, and FastAPI.
+> **Autonomous Code Review & Refactor Planner** powered by Google Gemini, LangGraph, and FastAPI
 
 ---
 
