@@ -68,4 +68,21 @@ async def invoke_with_retry(model: ChatGoogleGenerativeAI, messages: list) -> st
     """
     response = await model.ainvoke(messages)
     content = response.content
-    return content if isinstance(content, str) else "".join(str(item) for item in content)
+
+    if isinstance(content, str):
+        return content
+
+    # Gemini can return content as a list of content blocks:
+    # [{'type': 'text', 'text': '...'}, ...]
+    if isinstance(content, list):
+        parts = []
+        for item in content:
+            if isinstance(item, dict) and "text" in item:
+                parts.append(item["text"])
+            elif isinstance(item, str):
+                parts.append(item)
+            else:
+                parts.append(str(item))
+        return "".join(parts)
+
+    return str(content)

@@ -63,7 +63,17 @@ async def generate_roadmap(
     issue_summary = "\n".join(
         f"- [{i.severity.value.upper()}] {i.title} in {i.file_path}: {i.description}"
         for i in detected_issues
-    )
+    ) or "No issues were detected by the issue detection agent."
+
+    # Build raw tool findings for additional context
+    tool_findings = []
+    for path, issues in tool_results.bandit_results.items():
+        for bi in issues:
+            tool_findings.append(f"- [BANDIT {bi.test_id}] {bi.severity.value}: {bi.issue_text} in {path} L{bi.line_range}")
+    for path, radon in tool_results.radon_results.items():
+        if radon.cyclomatic_complexity > 5:
+            tool_findings.append(f"- [RADON] CC={radon.cyclomatic_complexity} ({radon.complexity_rank}) MI={radon.maintainability_index:.0f} in {path}")
+    tool_summary = "\n".join(tool_findings) if tool_findings else "No significant tool findings."
 
     # Build file context
     file_context = "\n".join(
@@ -80,10 +90,13 @@ async def generate_roadmap(
 ## Detected Issues ({len(detected_issues)} total)
 {issue_summary}
 
+## Raw Tool Findings (security, complexity, linting — use these even if not all became detected issues)
+{tool_summary}
+
 ## File Architecture
 {file_context}
 
-Generate a prioritized list of refactoring tasks that address these issues."""),
+Generate a prioritized list of refactoring tasks that address ALL findings above — especially security issues."""),
     ]
 
     try:

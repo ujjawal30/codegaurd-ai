@@ -12,6 +12,7 @@ from app.schemas.analysis import (
     DetectedIssue,
     GeneratedTest,
     RefactorRoadmap,
+    ToolResults,
     ValidationResult,
 )
 from app.services.agents.llm_client import get_chat_model, invoke_with_retry
@@ -23,13 +24,15 @@ SYSTEM_PROMPT = """You are a senior code review validator. Your job is to qualit
 the output of an automated code analysis pipeline.
 
 You must verify:
-1. COVERAGE: Do the refactoring tasks address all critical and high-severity issues?
+1. COVERAGE: Do the detected issues cover ALL significant findings from the static tools?
+   - If Bandit found 10 security issues but only 2 were reported, that's a COVERAGE failure.
+   - Every Bandit finding with severity medium+ should have a corresponding DetectedIssue.
 2. COHERENCE: Are the refactoring suggestions consistent and non-contradictory?
 3. COMPLETENESS: Do generated tests cover the highest-risk functions?
 4. FEASIBILITY: Are effort estimates realistic? Are suggestions actionable?
 5. GROUNDING: Are issues properly connected to specific metrics or standards?
 
-If you find problems, list them clearly. If the output is solid, confirm with high confidence.
+If the pipeline missed significant tool findings, mark is_valid=false and list what was missed.
 
 {schema_prompt}
 
@@ -40,17 +43,16 @@ async def validate_output(
     detected_issues: list[DetectedIssue],
     roadmap: RefactorRoadmap,
     generated_tests: list[GeneratedTest],
+    tool_results: ToolResults | None = None,
 ) -> ValidationResult:
     """
     Validate the complete pipeline output for coherence and quality.
-
-    This is the secondary LLM pass that acts as a quality gate
-    before returning results to the user.
 
     Args:
         detected_issues: All detected issues.
         roadmap: Generated refactoring roadmap.
         generated_tests: Generated pytest tests.
+        tool_results: Raw tool findings for cross-checking coverage.
 
     Returns:
         ValidationResult with pass/fail and suggestions.
@@ -61,7 +63,7 @@ async def validate_output(
     issues_summary = "\n".join(
         f"- [{i.severity.value}] {i.title} ({i.category.value}) in {i.file_path}"
         for i in detected_issues
-    )
+    ) or "No issues were detected."
 
     roadmap_summary = "\n".join(
         f"- P{t.priority}: {t.title} ({t.effort_estimate.value}) — addresses: {t.related_issues}"
@@ -72,6 +74,19 @@ async def validate_output(
         f"- Test for {t.target_function} ({t.risk_level.value})"
         for t in generated_tests
     ) if generated_tests else "No tests generated."
+
+    # Build tool findings cross-check
+    tool_cross_check = ""
+    if tool_results:
+        bandit_count = sum(len(issues) for issues in tool_results.bandit_results.values())
+        ruff_count = sum(len(issues) for issues in tool_results.ruff_results.values())
+        tool_cross_check = f"""
+## Raw Tool Findings (for cross-checking coverage)
+- Bandit found {bandit_count} security findings
+- Ruff found {ruff_count} linting issues
+- Detected issues reported: {len(detected_issues)}
+
+If detected issues is significantly fewer than raw tool findings, coverage is INSUFFICIENT."""
 
     schema_prompt = build_json_schema_prompt(ValidationResult)
 
@@ -88,6 +103,7 @@ Total estimated effort: {roadmap.estimated_total_effort}
 
 ## Generated Tests ({len(generated_tests)} tests)
 {tests_summary}
+{tool_cross_check}
 
 Assess the quality, coverage, and coherence of this analysis."""),
     ]
