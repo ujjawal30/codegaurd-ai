@@ -3,6 +3,9 @@ CodeGuard AI — File Classifier Agent.
 
 Uses Gemini LLM to classify each Python file's architectural role
 (controller, model, service, utility, config, test, etc.).
+
+If the batch LLM call returns fewer classifications than files,
+unclassified files are retried individually.
 """
 
 import json
@@ -16,7 +19,7 @@ from app.schemas.analysis import (
     FileRole,
 )
 from app.services.agents.llm_client import get_chat_model, invoke_with_retry
-from app.utils.guardrails import parse_llm_output_list, build_json_schema_prompt
+from app.utils.guardrails import parse_llm_output_list, parse_llm_output, build_json_schema_prompt
 
 logger = get_logger(__name__)
 
@@ -36,31 +39,119 @@ Possible roles:
 - script: Standalone scripts, CLI tools
 - other: Files that don't fit other categories
 
+CRITICAL: You MUST return exactly one classification for EACH file provided.
+If there are N files, you MUST respond with exactly N classification objects in your JSON array.
+
 {schema_prompt}
 
-Respond with a JSON array of classification objects. One for each file provided."""
+Respond with a JSON array of classification objects. One for EACH file provided."""
+
+SINGLE_FILE_PROMPT = """Classify this single Python file by its architectural role.
+
+Possible roles: controller, model, service, utility, config, test, migration, script, other.
+
+{schema_prompt}
+
+Respond with a single JSON object (not an array) for this file."""
+
 
 async def classify_files(
     files: list[dict],
     ast_results: dict[str, ASTAnalysis],
 ) -> list[FileClassification]:
     """
-    Classify files by architectural role using Gemini.
+    Classify files by architectural role using Gemini LLM.
 
-    Args:
-        files: List of dicts with 'path' and 'content' keys.
-        ast_results: AST analysis results for context.
-
-    Returns:
-        List of FileClassification objects.
+    Strategy:
+      1. Send all files in one batch LLM call.
+      2. If the LLM returns fewer classifications than files,
+         retry unclassified files individually.
     """
     if not files:
         return []
 
+    # ── Step 1: Batch classification ──────────────────────────────
+    classifications = await _batch_classify(files, ast_results)
+    classified_paths = {c.file_path for c in classifications}
+
+    # ── Step 2: Retry missing files individually ─────────────────
+    missing_files = [f for f in files if f["path"] not in classified_paths]
+    if missing_files:
+        logger.warning(
+            "batch_classification_incomplete",
+            total=len(files),
+            classified=len(classifications),
+            missing=len(missing_files),
+        )
+        for f in missing_files:
+            single = await _classify_single_file(f, ast_results)
+            if single:
+                classifications.append(single)
+
+    logger.info("files_classified", count=len(classifications), total=len(files))
+    return classifications
+
+
+async def _batch_classify(
+    files: list[dict],
+    ast_results: dict[str, ASTAnalysis],
+) -> list[FileClassification]:
+    """Classify all files in one LLM call."""
     model = get_chat_model(temperature=0.0)
 
-    # Build file summaries for the prompt (truncate content for token budget)
-    file_summaries = []
+    file_summaries = _build_file_summaries(files, ast_results)
+    schema_prompt = build_json_schema_prompt(FileClassification)
+
+    messages = [
+        SystemMessage(content=SYSTEM_PROMPT.format(schema_prompt=schema_prompt)),
+        HumanMessage(content=(
+            f"Classify ALL {len(files)} Python files below. "
+            f"You MUST return exactly {len(files)} classification objects.\n\n"
+            + "\n---\n".join(file_summaries)
+        )),
+    ]
+
+    try:
+        raw_response = await invoke_with_retry(model, messages)
+        classifications = parse_llm_output_list(raw_response, FileClassification)
+        logger.info("batch_classified", count=len(classifications))
+        return classifications
+    except Exception as e:
+        logger.error("batch_classification_failed", error=str(e))
+        return []
+
+
+async def _classify_single_file(
+    file: dict,
+    ast_results: dict[str, ASTAnalysis],
+) -> FileClassification | None:
+    """Classify a single file via individual LLM call."""
+    model = get_chat_model(temperature=0.0)
+
+    summaries = _build_file_summaries([file], ast_results)
+    schema_prompt = build_json_schema_prompt(FileClassification)
+
+    messages = [
+        SystemMessage(content=SINGLE_FILE_PROMPT.format(schema_prompt=schema_prompt)),
+        HumanMessage(content=f"Classify this file:\n\n{summaries[0]}"),
+    ]
+
+    try:
+        raw_response = await invoke_with_retry(model, messages)
+        classification = parse_llm_output(raw_response, FileClassification)
+        logger.info("single_file_classified", path=file["path"], role=classification.role.value)
+        return classification
+    except Exception as e:
+        logger.error("single_file_classification_failed", path=file["path"], error=str(e))
+        return None
+
+
+def _build_file_summaries(
+    files: list[dict],
+    ast_results: dict[str, ASTAnalysis],
+) -> list[str]:
+    """Build structured file summaries for the LLM prompt."""
+    summaries = []
     for f in files:
         path = f["path"]
         content = f["content"]
@@ -75,57 +166,9 @@ async def classify_files(
             summary += f"Classes: {class_names}\n"
             summary += f"Imports: {import_modules[:15]}\n"
 
-        # Include first 50 lines for context
         lines = content.split("\n")[:50]
         preview = "\n".join(lines)
         summary += f"Content preview:\n```python\n{preview}\n```\n"
-        file_summaries.append(summary)
+        summaries.append(summary)
 
-    schema_prompt = build_json_schema_prompt(FileClassification)
-
-    messages = [
-        SystemMessage(content=SYSTEM_PROMPT.format(schema_prompt=schema_prompt)),
-        HumanMessage(content=f"Classify these {len(files)} Python files:\n\n" + "\n---\n".join(file_summaries)),
-    ]
-
-    try:
-        raw_response = await invoke_with_retry(model, messages)
-        classifications = parse_llm_output_list(raw_response, FileClassification)
-
-        logger.info("files_classified", count=len(classifications))
-        return classifications
-
-    except Exception as e:
-        logger.error("classification_failed", error=str(e))
-        # Fallback: heuristic-based classification
-        return _fallback_classify(files)
-
-
-def _fallback_classify(files: list[dict]) -> list[FileClassification]:
-    """Heuristic fallback classification when LLM fails."""
-    results = []
-    for f in files:
-        path = f["path"].lower()
-        role = FileRole.OTHER
-        if "test" in path:
-            role = FileRole.TEST
-        elif "model" in path or "schema" in path:
-            role = FileRole.MODEL
-        elif "config" in path or "settings" in path:
-            role = FileRole.CONFIG
-        elif "util" in path or "helper" in path:
-            role = FileRole.UTILITY
-        elif "service" in path:
-            role = FileRole.SERVICE
-        elif "api" in path or "route" in path or "endpoint" in path or "view" in path:
-            role = FileRole.CONTROLLER
-        elif "migration" in path or "alembic" in path:
-            role = FileRole.MIGRATION
-
-        results.append(FileClassification(
-            file_path=f["path"],
-            role=role,
-            confidence=0.5,
-            reasoning="Heuristic fallback classification based on file path.",
-        ))
-    return results
+    return summaries
