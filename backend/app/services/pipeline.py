@@ -192,11 +192,13 @@ async def detect_issues(state: PipelineState) -> dict[str, Any]:
     tool_results = state.get("tool_results", ToolResults())
     classifications = state.get("file_classifications", [])
     rag_context = state.get("rag_context", [])
+    files = state.get("files", [])
 
     logger.info("pipeline_stage_start", job_id=job_id, stage="detect_issues")
     await _update_job_status(job_id, AnalysisStatus.DETECTING, "detect_issues")
 
-    issues = await do_detect(tool_results, classifications, rag_context)
+    file_data = [{"path": f.path, "content": f.content} for f in files]
+    issues = await do_detect(tool_results, classifications, rag_context, files=file_data)
     return {"detected_issues": issues, "current_stage": "detect_issues"}
 
 
@@ -241,12 +243,13 @@ async def validate_output(state: PipelineState) -> dict[str, Any]:
     issues = state.get("detected_issues", [])
     roadmap = state.get("refactor_roadmap", RefactorRoadmap(tasks=[], summary="", estimated_total_effort=""))
     tests = state.get("generated_tests", [])
+    tool_results = state.get("tool_results", ToolResults())
     attempts = state.get("validation_attempts", 0)
 
     logger.info("pipeline_stage_start", job_id=job_id, stage="validate", attempt=attempts + 1)
     await _update_job_status(job_id, AnalysisStatus.VALIDATING, "validate")
 
-    validation = await do_validate(issues, roadmap, tests)
+    validation = await do_validate(issues, roadmap, tests, tool_results=tool_results)
     return {
         "validation_result": validation,
         "validation_attempts": attempts + 1,

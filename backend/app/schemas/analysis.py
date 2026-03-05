@@ -178,6 +178,7 @@ class IssueCategory(str, enum.Enum):
     ARCHITECTURE = "architecture"
     ERROR_HANDLING = "error_handling"
     TESTING = "testing"
+    LOGIC_BUG = "logic_bug"
 
 
 class DetectedIssue(BaseModel):

@@ -77,7 +77,8 @@ async def classify_files(
 
         # Include first 50 lines for context
         lines = content.split("\n")[:50]
-        summary += f"Content preview:\n```python\n{'chr(10)'.join(lines)}\n```\n"
+        preview = "\n".join(lines)
+        summary += f"Content preview:\n```python\n{preview}\n```\n"
         file_summaries.append(summary)
 
     schema_prompt = build_json_schema_prompt(FileClassification)
