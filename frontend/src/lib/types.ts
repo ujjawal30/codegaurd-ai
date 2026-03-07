@@ -10,9 +10,11 @@ export type Severity = "low" | "medium" | "high" | "critical";
 export type FileRole = "controller" | "model" | "service" | "utility" | "config" | "test" | "migration" | "script" | "other";
 export type RiskLevel = "low" | "medium" | "high" | "critical";
 export type EffortEstimate = "trivial" | "small" | "medium" | "large" | "major";
-export type IssueCategory = "performance" | "security" | "maintainability" | "style" | "architecture" | "error_handling" | "testing";
+export type IssueCategory = "performance" | "security" | "maintainability" | "style" | "architecture" | "error_handling" | "testing" | "logic_bug";
 
 export type Phase = "idle" | "uploading" | "processing" | "done" | "error";
+
+export type SortDirection = "none" | "desc" | "asc";
 
 /* ── Tool Results ─────────────────────────────────────────────── */
 
