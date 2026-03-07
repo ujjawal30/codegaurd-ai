@@ -337,66 +337,134 @@ export function FilesTab({ data }: { data: AnalysisResponse }) {
   const bandit = data.tool_results?.bandit_results ?? {};
   const ast = data.tool_results?.ast_results ?? {};
   const files = Object.keys({ ...radon, ...ast }).sort();
+  const roleMap = Object.fromEntries((data.file_classifications ?? []).map((c) => [c.file_path, c.role]));
   if (!files.length) return <Empty label="No file metrics." />;
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      {files.map((fp) => {
-        const r = radon[fp];
-        const a = ast[fp];
-        const ruffCount = ruff[fp]?.length ?? 0;
-        const banditCount = bandit[fp]?.length ?? 0;
-        return (
-          <Card key={fp}>
-            <CardContent className="px-5">
-              <h4 className="font-mono text-xs font-medium mb-3 truncate" title={fp}>
-                {fp}
-              </h4>
-              <div className="grid grid-cols-3 gap-3 text-xs">
-                {r ? (
-                  <>
-                    <div>
-                      <span className="text-muted-foreground block mb-0.5">CC</span>
-                      <span className="font-mono font-medium">
-                        {r.cyclomatic_complexity} <span className="text-blue-400">({r.complexity_rank})</span>
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground block mb-0.5">MI</span>
-                      <span className="font-mono font-medium">{r.maintainability_index}</span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground block mb-0.5">SLOC</span>
-                      <span className="font-mono font-medium">{r.sloc}</span>
-                    </div>
-                  </>
-                ) : (
-                  <div className="col-span-3 text-muted-foreground italic">No metrics</div>
-                )}
-              </div>
-              <div className="flex gap-4 mt-3 text-xs">
-                <span className={ruffCount > 0 ? "text-yellow-500" : "text-muted-foreground"}>{ruffCount} lint</span>
-                <span className={banditCount > 0 ? "text-red-400" : "text-muted-foreground"}>{banditCount} security</span>
-              </div>
-              {a && (a.functions.length > 0 || a.classes.length > 0) && (
-                <div className="flex flex-wrap gap-1.5 mt-3 pt-3 border-t">
-                  {a.classes.map((cls) => (
-                    <code key={cls.name} className="text-[11px] px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 font-mono">
-                      class {cls.name}
-                    </code>
-                  ))}
-                  {a.functions.map((fn) => (
-                    <code key={fn.name} className="text-[11px] px-2 py-0.5 rounded bg-muted text-muted-foreground font-mono">
-                      {fn.is_async ? "async " : ""}
-                      {fn.name}()
-                    </code>
-                  ))}
+    <div className="space-y-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {files.map((fp) => {
+          const r = radon[fp];
+          const a = ast[fp];
+          const ruffCount = ruff[fp]?.length ?? 0;
+          const banditCount = bandit[fp]?.length ?? 0;
+          const role = roleMap[fp];
+          return (
+            <Card key={fp}>
+              <CardContent className="px-5">
+                <div className="flex items-center justify-between gap-2 mb-3">
+                  <h4 className="font-mono text-xs font-medium truncate" title={fp}>
+                    {fp}
+                  </h4>
+                  {role && (
+                    <Badge variant="outline" className="text-[10px] shrink-0">
+                      {role}
+                    </Badge>
+                  )}
                 </div>
-              )}
-            </CardContent>
-          </Card>
-        );
-      })}
+                <div className="grid grid-cols-3 gap-3 text-xs">
+                  {r ? (
+                    <>
+                      <div>
+                        <span className="text-muted-foreground block mb-0.5" title="Cyclomatic Complexity — lower is simpler">
+                          CC
+                        </span>
+                        <span className="font-mono font-medium">
+                          {r.cyclomatic_complexity} <span className="text-blue-400">({r.complexity_rank})</span>
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground block mb-0.5" title="Maintainability Index — 0 to 100, higher is better">
+                          MI
+                        </span>
+                        <span className="font-mono font-medium">{r.maintainability_index}</span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground block mb-0.5" title="Source Lines of Code">
+                          SLOC
+                        </span>
+                        <span className="font-mono font-medium">{r.sloc}</span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="col-span-3 text-muted-foreground italic">No metrics</div>
+                  )}
+                </div>
+                <div className="flex gap-4 mt-3 text-xs">
+                  <span className={ruffCount > 0 ? "text-yellow-500" : "text-muted-foreground"} title="Ruff style and quality warnings">
+                    {ruffCount} lint
+                  </span>
+                  <span className={banditCount > 0 ? "text-red-400" : "text-muted-foreground"} title="Bandit security findings">
+                    {banditCount} security
+                  </span>
+                </div>
+                {a && (a.functions.length > 0 || a.classes.length > 0) && (
+                  <div className="flex flex-wrap gap-1.5 mt-3 pt-3 border-t">
+                    {a.classes.map((cls) => (
+                      <code key={cls.name} className="text-[11px] px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 font-mono">
+                        class {cls.name}
+                      </code>
+                    ))}
+                    {a.functions.map((fn) => (
+                      <code key={fn.name} className="text-[11px] px-2 py-0.5 rounded bg-muted text-muted-foreground font-mono">
+                        {fn.is_async ? "async " : ""}
+                        {fn.name}()
+                      </code>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+
+      {/* Metrics legend */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-px rounded-lg border border-muted overflow-hidden text-[11px]">
+        <div className="bg-muted/20 px-4 py-3 space-y-1.5">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-2">Metrics</p>
+          <p className="text-muted-foreground">
+            <strong className="text-foreground/70 font-medium">CC</strong> - Cyclomatic Complexity{" "}
+            <span className="text-muted-foreground/50">(lower = simpler)</span>
+          </p>
+          <p className="text-muted-foreground">
+            <strong className="text-foreground/70 font-medium">MI</strong> - Maintainability Index{" "}
+            <span className="text-muted-foreground/50">(0–100, higher = better)</span>
+          </p>
+          <p className="text-muted-foreground">
+            <strong className="text-foreground/70 font-medium">SLOC</strong> - Source Lines of Code
+          </p>
+          <p className="text-muted-foreground">
+            <strong className="text-yellow-500/80 font-medium">lint</strong> - Ruff style & quality warnings
+          </p>
+          <p className="text-muted-foreground">
+            <strong className="text-red-400/80 font-medium">security</strong> - Bandit security findings
+          </p>
+        </div>
+        <div className="bg-muted/20 px-4 py-3">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-2">Complexity Rank</p>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-muted-foreground">
+            <p>
+              <strong className="text-emerald-400 font-mono">A</strong> - Simple
+            </p>
+            <p>
+              <strong className="text-emerald-400 font-mono">B</strong> - Well-structured
+            </p>
+            <p>
+              <strong className="text-yellow-400 font-mono">C</strong> - Slightly complex
+            </p>
+            <p>
+              <strong className="text-yellow-400 font-mono">D</strong> - Moderately complex
+            </p>
+            <p>
+              <strong className="text-orange-400 font-mono">E</strong> - Complex
+            </p>
+            <p>
+              <strong className="text-red-400 font-mono">F</strong> - Very complex
+            </p>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
