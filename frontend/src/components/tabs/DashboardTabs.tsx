@@ -1,10 +1,13 @@
-import type { AnalysisResponse, DetectedIssue, GeneratedTest } from "@/lib/types";
+import { useState, useMemo } from "react";
+import type { AnalysisResponse, DetectedIssue, GeneratedTest, SortDirection } from "@/lib/types";
 import { renderMarkdown } from "@/lib/utils";
+import { CATEGORIES, SEVERITIES, EFFORTS } from "@/constants";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { FiltersBar, MultiFilterPopover, SortButton } from "@/components/shared/FiltersBar";
 import { ChevronRight, TestTube2 } from "lucide-react";
 import Empty from "@/components/shared/Empty";
 
@@ -79,41 +82,142 @@ export function OverviewTab({ data, severityCounts }: { data: AnalysisResponse; 
 }
 
 export function IssuesTab({ issues }: { issues: DetectedIssue[] }) {
+  const [categoryFilter, setCategoryFilter] = useState<Set<string>>(new Set());
+  const [severityFilter, setSeverityFilter] = useState<Set<string>>(new Set());
+  const [sortDirection, setSortDirection] = useState<SortDirection>("none");
+
+  const filteredIssues = useMemo(() => {
+    let result = issues;
+
+    if (categoryFilter.size > 0) {
+      result = result.filter((i) => categoryFilter.has(i.category));
+    }
+    if (severityFilter.size > 0) {
+      result = result.filter((i) => severityFilter.has(i.severity));
+    }
+    if (sortDirection !== "none") {
+      result = [...result].sort((a, b) => {
+        const diff = SEVERITIES.indexOf(a.severity) - SEVERITIES.indexOf(b.severity);
+        return sortDirection === "desc" ? diff : -diff;
+      });
+    }
+
+    return result;
+  }, [issues, categoryFilter, severityFilter, sortDirection]);
+
+  const isFiltered = categoryFilter.size > 0 || severityFilter.size > 0 || sortDirection !== "none";
+
+  const clearAll = () => {
+    setCategoryFilter(new Set());
+    setSeverityFilter(new Set());
+    setSortDirection("none");
+  };
+
+  const cycleSortDirection = () => {
+    setSortDirection((prev) => (prev === "none" ? "desc" : prev === "desc" ? "asc" : "none"));
+  };
+
   if (!issues.length) return <Empty label="No issues detected." />;
+
   return (
-    <div className="space-y-3">
-      {issues.map((issue, i) => (
-        <Card key={i}>
-          <CardContent className="px-5">
-            <div className="flex items-start justify-between gap-3 mb-2">
-              <h4 className="font-medium text-sm">{issue.title}</h4>
-              <div className="flex gap-1.5 shrink-0">
-                <Badge variant="outline" className="text-[10px]">
-                  {issue.category}
-                </Badge>
-                <Badge className={`text-[10px] ${SEV_STYLES[issue.severity]?.badge ?? ""}`}>{issue.severity}</Badge>
-              </div>
-            </div>
-            <p className="text-sm text-muted-foreground leading-relaxed">{issue.description}</p>
-            <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
-              <code className="font-mono">{issue.file_path}</code>
-              {issue.line_range?.length > 0 && <span>L{issue.line_range.join("–")}</span>}
-            </div>
-            {issue.suggestion && (
-              <div className="mt-3 p-3 rounded-md bg-emerald-500/5 border border-emerald-500/10 text-sm">
-                <span className="font-medium text-xs text-emerald-500">Suggestion: </span>
-                <span className="text-foreground">{issue.suggestion}</span>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      ))}
+    <div className="space-y-4">
+      {/* Filter Bar */}
+      <FiltersBar isFiltered={isFiltered} clearAll={clearAll} filteredCount={filteredIssues.length} totalCount={issues.length}>
+        <MultiFilterPopover label="Category" options={CATEGORIES} selected={categoryFilter} onChange={setCategoryFilter} />
+        <MultiFilterPopover label="Severity" options={SEVERITIES} selected={severityFilter} onChange={setSeverityFilter} />
+        <SortButton
+          direction={sortDirection}
+          onClick={cycleSortDirection}
+          labels={{ idle: "Sort Severity", asc: "Critical First", desc: "Low First" }}
+        />
+      </FiltersBar>
+
+      {/* Issue Cards */}
+      {filteredIssues.length === 0 ? (
+        <Empty label="No issues match the current filters." />
+      ) : (
+        <div className="space-y-3">
+          {filteredIssues.map((issue, i) => (
+            <Card key={i}>
+              <CardContent className="px-5">
+                <div className="flex items-start justify-between gap-3 mb-2">
+                  <h4 className="font-medium text-sm">{issue.title}</h4>
+                  <div className="flex gap-1.5 shrink-0">
+                    <Badge variant="outline" className="text-[10px]">
+                      {issue.category}
+                    </Badge>
+                    <Badge className={`text-[10px] ${SEV_STYLES[issue.severity]?.badge ?? ""}`}>{issue.severity}</Badge>
+                  </div>
+                </div>
+                <p className="text-sm text-muted-foreground leading-relaxed">{issue.description}</p>
+                <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
+                  <code className="font-mono">{issue.file_path}</code>
+                  {issue.line_range?.length > 0 && <span>L{issue.line_range.join("–")}</span>}
+                </div>
+                {issue.suggestion && (
+                  <div className="mt-3 p-3 rounded-md bg-emerald-500/5 border border-emerald-500/10 text-sm">
+                    <span className="font-medium text-xs text-emerald-500">Suggestion: </span>
+                    <span className="text-foreground">{issue.suggestion}</span>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
 export function RoadmapTab({ roadmap }: { roadmap: AnalysisResponse["refactor_roadmap"] }) {
+  const [fileFilter, setFileFilter] = useState<Set<string>>(new Set());
+  const [effortFilter, setEffortFilter] = useState<Set<string>>(new Set());
+  const [sortDirection, setSortDirection] = useState<SortDirection>("none");
+
+  const allFiles = useMemo(() => {
+    if (!roadmap?.tasks.length) return [];
+    const set = new Set<string>();
+    roadmap.tasks.forEach((t) => t.affected_files.forEach((f) => set.add(f)));
+    return [...set].sort();
+  }, [roadmap]);
+
+  const filteredTasks = useMemo(() => {
+    if (!roadmap?.tasks.length) return [];
+    let result = [...roadmap.tasks];
+
+    if (fileFilter.size > 0) {
+      result = result.filter((t) => t.affected_files.some((f) => fileFilter.has(f)));
+    }
+    if (effortFilter.size > 0) {
+      result = result.filter((t) => effortFilter.has(t.effort_estimate));
+    }
+
+    if (sortDirection !== "none") {
+      result.sort((a, b) => {
+        const diff = EFFORTS.indexOf(a.effort_estimate) - EFFORTS.indexOf(b.effort_estimate);
+        return sortDirection === "desc" ? -diff : diff;
+      });
+    } else {
+      result.sort((a, b) => a.priority - b.priority);
+    }
+
+    return result;
+  }, [roadmap, fileFilter, effortFilter, sortDirection]);
+
+  const isFiltered = fileFilter.size > 0 || effortFilter.size > 0 || sortDirection !== "none";
+
+  const clearAll = () => {
+    setFileFilter(new Set());
+    setEffortFilter(new Set());
+    setSortDirection("none");
+  };
+
+  const cycleSortDirection = () => {
+    setSortDirection((prev) => (prev === "none" ? "asc" : prev === "asc" ? "desc" : "none"));
+  };
+
   if (!roadmap?.tasks.length) return <Empty label="No refactoring tasks." />;
+
   return (
     <div className="space-y-4">
       <Card className="bg-blue-500/5 border-blue-500/10">
@@ -124,9 +228,22 @@ export function RoadmapTab({ roadmap }: { roadmap: AnalysisResponse["refactor_ro
           </p>
         </CardContent>
       </Card>
-      {roadmap.tasks
-        .sort((a, b) => a.priority - b.priority)
-        .map((task, i) => (
+
+      <FiltersBar isFiltered={isFiltered} clearAll={clearAll} filteredCount={filteredTasks.length} totalCount={roadmap.tasks.length}>
+        <MultiFilterPopover label="Files" options={allFiles} selected={fileFilter} onChange={setFileFilter} />
+        <MultiFilterPopover label="Effort" options={EFFORTS} selected={effortFilter} onChange={setEffortFilter} />
+        <SortButton
+          direction={sortDirection}
+          onClick={cycleSortDirection}
+          labels={{ idle: "Sort Effort", asc: "Easiest First", desc: "Hardest First" }}
+          accent="blue"
+        />
+      </FiltersBar>
+
+      {filteredTasks.length === 0 ? (
+        <Empty label="No tasks match the current filters." />
+      ) : (
+        filteredTasks.map((task, i) => (
           <Card key={i}>
             <CardContent className="px-5">
               <div className="flex items-start justify-between gap-3 mb-2">
@@ -152,7 +269,8 @@ export function RoadmapTab({ roadmap }: { roadmap: AnalysisResponse["refactor_ro
               )}
             </CardContent>
           </Card>
-        ))}
+        ))
+      )}
     </div>
   );
 }

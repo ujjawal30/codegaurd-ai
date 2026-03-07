@@ -1,3 +1,5 @@
+import type { EffortEstimate, IssueCategory, Severity } from "@/lib/types";
+
 export const STAGE_LABELS: Record<string, string> = {
   pending: "Initializing pipeline…",
   extract: "Extracting files…",
@@ -10,3 +12,18 @@ export const STAGE_LABELS: Record<string, string> = {
   validate: "Validating results…",
   completed: "Analysis complete",
 };
+
+export const CATEGORIES: IssueCategory[] = [
+  "performance",
+  "security",
+  "maintainability",
+  "style",
+  "architecture",
+  "error_handling",
+  "testing",
+  "logic_bug",
+];
+
+export const SEVERITIES: Severity[] = ["critical", "high", "medium", "low"];
+
+export const EFFORTS: EffortEstimate[] = ["trivial", "small", "medium", "large", "major"];
